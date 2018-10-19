@@ -126,8 +126,12 @@ Namespace WindowsFormsApp1
             Dim packed As Integer() = pack_rgb(quantized)
 
             Dim unique As New Dictionary(Of Integer, Integer)
-            For Each Entry As Integer In packed.Distinct.ToList
-                unique.Add(Entry, packed.ToList.FindAll(Function(s) s = Entry).Count)
+            For Each Entry As Integer In packed
+                If unique.ContainsKey(Entry) Then
+                    unique(Entry) += 1
+                Else
+                    unique.Add(Entry, 1)
+                End If
             Next
             unique = unique.OrderBy(Function(x) x.Value).ToDictionary(Function(x) x.Key, Function(x) x.Value)
             ' var unique = packed.GroupBy(item => item, (key, elements) => new { key, count = elements.Count() }).ToDictionary(x => x.key, x => x.count);
