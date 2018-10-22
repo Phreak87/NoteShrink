@@ -1,10 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.ComponentModel;
 using System.Data;
 using System.Drawing;
 using System.Linq;
-using System.Text;
 using System.Windows.Forms;
 using System.Drawing.Imaging;
 using System.IO;
@@ -14,11 +12,12 @@ namespace WindowsFormsApp1
 {
     public partial class Form1 : Form
     {
-        Bitmap WorkingBmp;
-        int num_colors = 8;
-        double value_threshold = 0.25;
-        double sat_threshold = 0.1;
-		
+        private Bitmap WorkingBmp;
+        private int num_colors = 8;
+        private double value_threshold = 0.25;
+        private double sat_threshold = 0.1;
+        private Random rng = new Random();
+
         public Form1()
         {
             InitializeComponent();
@@ -57,28 +56,20 @@ namespace WindowsFormsApp1
         {
             //def sample_pixels(img, options):
             //'''Pick a fixed percentage of pixels in the image, returned in random order.'''
-            var num_pixels = img.SelectMany(x => x).ToArray();
-            var num_samples = (int)(num_pixels.Length * 0.05);
-            var random = new Random();
-            random.Next(0, num_samples);
+            var pixels = img.SelectMany(x => x).ToArray();
+            var num_pixels = pixels.Length;
+            var num_samples = (int)(num_pixels * 0.05);
             var pxls = new List<byte[]>();
 
+            var idx = Enumerable.Range(0, num_pixels).ToList();
+            ShuffleAll(idx);
+
             for (int i = 0; i < num_samples; i++)
-            {
-                var idx = random.Next(0, num_samples);
-                // swap Blue & Red
-                pxls.Add(new byte[] { num_pixels[i][2], num_pixels[i][1], num_pixels[i][0] });
-            }
-            //var clr = new List<Color>();
-            //for (int i = 0; i < num_samples; i++)
-            //{
-            //    //swap Blue & Red
-            //    pxls.Add(new byte[] { num_pixels[i][2], num_pixels[i][1], num_pixels[i][0] });
-            //    clr.Add(Color.FromArgb(pxls[i][0], pxls[i][1], pxls[i][2]));
-            //}
+                pxls.Add(pixels[idx[i]]);
 
             return pxls;
         }
+
         private List<byte[]> get_palette(List<byte[]> samples1)
         {
             //def get_palette(samples, options, return_mask= False, kmeans_iter= 40):
@@ -95,9 +86,7 @@ namespace WindowsFormsApp1
             //Convert List of Byte[] to double[][] for Accord KMeans
             var doubleSamples = new double[samples1.Count][];
             for (int i = 0; i < samples1.Count; i++)
-            {
                 doubleSamples[i] = new double[] { samples1[i][0], samples1[i][1], samples1[i][2] };
-            }
 
             // Filter samples to only true items
             var countOfTrue = fg_mask.Where(x => x == true).Count();
@@ -111,6 +100,7 @@ namespace WindowsFormsApp1
                     c++;
                 }
             }
+
             // Accord KMeans returns different values than scipy kmeans.
             var clusters = kmeans.Learn(filteredSamples);
             var palette1 = clusters.Centroids.ToList();
@@ -132,10 +122,12 @@ namespace WindowsFormsApp1
 
             var quantized = quantize(image, bits_per_channel);
             var packed = pack_rgb(quantized);
-            var unique = packed.GroupBy(item => item, (key, elements) => new { key, count = elements.Count() }).ToDictionary(x => x.key, x => x.count);
-            var maxvalue = unique.Max(x => x.Value);
-            var maxindex = unique.ToList().FindIndex(x => x.Value == maxvalue);
-            int packed_mode = unique.ElementAt(maxindex).Key;
+            var unique = packed.GroupBy(item => item, (key, elements) => new { key, count = elements.Count() }).OrderByDescending(o => o.count).ToDictionary(x => x.key, x => x.count);
+            //var maxvalue = unique.Max(x => x.Value);
+            //var maxindex = unique.ToList().FindIndex(x => x.Value == maxvalue);
+
+            // Since they're sorted descending, I can just get index 0
+            int packed_mode = unique.ElementAt(0).Key;
 
             return unpack_rgb(packed_mode);
         }
@@ -179,24 +171,22 @@ namespace WindowsFormsApp1
                 var g = (int)rgb[i][1];
                 var b = (int)rgb[i][2];
                 var p = r << 16 | g << 8 | b;
+                //var p2 = ((r & 0xff) << 16) | ((g & 0xff) << 8) | (b & 0xff);
                 packed[i] = p;
             }
 
             return packed;
         }
 
-        private Color unpack_rgb(int packed_mode)//(Dictionary<int,int> packed)
+        private Color unpack_rgb(int packed_mode)
         {
             //def unpack_rgb(packed):
             //'''Unpacks a single integer or array of integers into one or more 24 - bit RGB values.
-            //var maxvalue = packed.Max(x => x.Value);
-            //var maxindex = packed.ToList().FindIndex(x => x.Value == maxvalue);
-            //int packed_mode = packed.ElementAt(maxindex).Key;
-            var r1 = ((packed_mode >> 16) & 0xff);
-            var g1 = ((packed_mode >> 8) & 0xff);
-            var b1 = ((packed_mode) & 0xff);
+            var red = (packed_mode >> 16) & 0xff;  // extract red byte (bits 23-17)
+            var green = (packed_mode >> 8) & 0xff; // extract green byte (bits 15-8)
+            var blue = packed_mode & 0xff;         // extract blue byte (bits 7-0)
 
-            return Color.FromArgb(r1, g1, b1);
+            return Color.FromArgb(red, green, blue);
         }
 
         private List<bool> get_fg_mask(Color bg_color, List<byte[]> samples2)
@@ -208,20 +198,20 @@ namespace WindowsFormsApp1
             //background by a threshold.'''
 
             Tuple<float, double> rgbval = rgb_to_sv(bg_color);
-            Tuple<List<float>, List<double>> t = rgb_to_sv_samples(samples2);
+            Tuple<List<float>, List<float>> t = rgb_to_sv_samples(samples2);
 
             var s_bg = rgbval.Item1;
             var v_bg = rgbval.Item2;
             var s_samples = t.Item1;
             var v_samples = t.Item2;
             var s_diffList = new List<float>();
-            var v_diffList = new List<double>();
+            var v_diffList = new List<float>();
             for (int i = 0; i < s_samples.Count; i++)
             {
                 var curSDiff = Math.Abs(s_bg - s_samples[i]);
                 var curVDiff = Math.Abs(v_bg - v_samples[i]);
                 s_diffList.Add(curSDiff);
-                v_diffList.Add(curVDiff);
+                v_diffList.Add((float)curVDiff);
             }
 
             var fg_mask = new List<bool>();
@@ -240,6 +230,7 @@ namespace WindowsFormsApp1
             //'''Convert an RGB image or array of RGB colors to saturation and
             //value, returning each one as a separate 32 - bit floating point array or
             //value.
+
             var cmax = Math.Max(rgb.R, Math.Max(rgb.G, rgb.B));
             var cmin = Math.Min(rgb.R, Math.Min(rgb.G, rgb.B));
             var delta = cmax - cmin;
@@ -250,11 +241,11 @@ namespace WindowsFormsApp1
             return Tuple.Create(saturation, value);
         }
 
-        private Tuple<List<float>, List<double>> rgb_to_sv_samples(List<byte[]> samples3)
+        private Tuple<List<float>, List<float>> rgb_to_sv_samples(List<byte[]> samples3)
         {
             //rgb_to_sv samples
             var saturationList = new List<float>();
-            var valueList = new List<double>();
+            var valueList = new List<float>();
             for (int i = 0; i < samples3.Count; i++)
             {
                 var curMin = Math.Min(samples3[i][0], Math.Min(samples3[i][1], samples3[i][2]));
@@ -262,7 +253,7 @@ namespace WindowsFormsApp1
                 var curDelta = curMax - curMin;
                 var curSaturation = (float)curDelta / (float)curMax;
                 curSaturation = curMax == 0 ? 0 : curSaturation;
-                var curValue = curMax / 255.0;
+                var curValue = curMax / 255.0f;
 
                 saturationList.Add(curSaturation);
                 valueList.Add(curValue);
@@ -345,7 +336,6 @@ namespace WindowsFormsApp1
             }
 
             using (var stream = new MemoryStream(newData))
-            //using (var bmp = new Bitmap(imageBox.Image.Width, imageBox.Image.Height, PixelFormat.Format32bppRgb))
             {
                 var bmp = new Bitmap(WorkingBmp.Width, WorkingBmp.Height, PixelFormat.Format32bppRgb);
                 var bmpData = bmp.LockBits(new Rectangle(0, 0, bmp.Width, bmp.Height), ImageLockMode.WriteOnly, bmp.PixelFormat);
@@ -440,6 +430,19 @@ namespace WindowsFormsApp1
             blueDifference = current.B - match.B;
 
             return (int)Math.Sqrt((redDifference * redDifference) + (greenDifference * greenDifference) + (blueDifference * blueDifference));
+        }
+
+        public void ShuffleAll<T>(IList<T> list)
+        {
+            int n = list.Count;
+            while (n > 1)
+            {
+                n--;
+                int k = rng.Next(n + 1);
+                T value = list[k];
+                list[k] = list[n];
+                list[n] = value;
+            }
         }
 
         private void Form1_Load(object sender, EventArgs e)

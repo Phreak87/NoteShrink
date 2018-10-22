@@ -1,0 +1,8 @@
+﻿################################################################################
+# This .gitignore file was automatically created by Microsoft(R) Visual Studio.
+################################################################################
+
+/NoteShrinkCSharp/.vs/NoteShrinkCSharp2/v15/Server/sqlite3
+/NoteShrinkCSharp/bin/Debug
+/NoteShrinkCSharp/obj/x86/Debug
+/NoteShrinkCSharp/.vs/NoteShrinkCSharp2/v15
