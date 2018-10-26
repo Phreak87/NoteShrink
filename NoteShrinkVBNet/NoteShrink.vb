@@ -309,31 +309,25 @@ Public Class NoteShrink
             Dim MinDst As Integer = Integer.MaxValue
             Dim Index As Integer = -1
             For i As Integer = 0 To map.Length - 1
-                Dim distance As Integer = GetDistance(current, map(i), False)
+                Dim distance As Integer = GetDistance(current, map(i))
                 If distance < MinDst Then Index = i : MinDst = distance
             Next
             Distances.Add(current, Index)
             Return Index
         End If
     End Function
-    Private Function GetDistance(ByVal current As Color, ByVal match As Color, Optional ByVal OnlySquared As Boolean = True) As Integer
-        If OnlySquared = True Then
-            Return GetEuclideanDistanceSquared(current, match)
-        Else
-            Return GetEuclideanDistanceSquared(current, match)
-        End If
-    End Function
-    Private Function GetEuclideanDistanceSquared(ByVal current As Color, ByVal match As Color) As Integer
-        Dim redDifference As Integer = Math.Abs(CDbl(current.R) - match.R)
-        Dim greenDifference As Integer = Math.Abs(CDbl(current.G) - match.G)
-        Dim blueDifference As Integer = Math.Abs(CDbl(current.B) - match.B)
-        Return (redDifference * redDifference) + (greenDifference * greenDifference) + (blueDifference * blueDifference)
+    Private Function GetDistance(ByVal current As Color, ByVal match As Color) As Integer
+        Return GetEuclideanDistanceSquareRoot(current, match)
     End Function
     Private Function GetEuclideanDistanceSquareRoot(ByVal current As Color, ByVal match As Color) As Integer
         Dim redDifference As Integer = CDbl(current.R) - match.R
         Dim greenDifference As Integer = CDbl(current.G) - match.G
         Dim blueDifference As Double = CDbl(current.B) - match.B
-        Return CInt(Math.Truncate(Math.Sqrt((redDifference * redDifference) + (greenDifference * greenDifference) + (blueDifference * blueDifference))))
+        Return CInt(Math.Truncate(
+                    Math.Sqrt(
+                    (redDifference * redDifference) +
+                    (greenDifference * greenDifference) +
+                    (blueDifference * blueDifference))))
     End Function
 #End Region
 
